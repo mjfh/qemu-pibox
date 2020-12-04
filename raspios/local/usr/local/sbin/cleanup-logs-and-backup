@@ -1,0 +1,111 @@
+#! /bin/sh
+#
+# -- jordan hrycaj <jordan@teddy-net.com>
+#
+# $Id$
+#
+
+self=`basename $0`
+uid=`id -u`
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+usage () { # Syntax: [<message> ...]
+    test -z "$*" || {
+	echo
+	echo "*** $self: $*"
+    } >&2
+    {
+	echo
+	echo "*** usage: $self [-f|--force]"
+	echo
+    } >&2
+    exit 2
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+
+test "$uid" -eq 0 || {
+    echo "*** $self: must be root to run this script - STOP" >&2
+    exit 2
+}
+
+test $# -eq 1 || usage
+case "$1" in -f|--force);; -*)usage;esac
+
+# ---------------------------------------------------------------------------
+# remove backup logs
+# ---------------------------------------------------------------------------
+
+dirs="/var/log /etc/service /var/backups"
+echo "*** $self: purging '*.[0-9].gz' in $dirs"
+find -L $dirs -type f -name '*.[0-9].gz' -print | xargs -n1 rm -f
+
+dirs="/var/log /etc/service /var/backups"
+echo "*** $self: purging '*.[01]' in $dirs"
+find -L $dirs -type f -name '*.[01]' -print | xargs -n1 rm -f
+
+dirs="/etc/service"
+echo "*** $self: purging '@*' in $dirs"
+find -L $dirs -type f -name '@*' -print | xargs -n1 rm -f
+
+# ---------------------------------------------------------------------------
+# zero log files and restart services
+# ---------------------------------------------------------------------------
+
+dirs="/var/log"
+echo "*** $self: zero all files in $dirs"
+find $dirs -type f -print |
+    while read f
+    do
+	case "$f" in
+	    *.gz|*.bz2|*.xz|*.[1-9])
+		rm -f "$f"
+		;;
+	    *)  true > $f
+	esac
+    done
+
+echo "*** $self: restarting syslog"
+service rsyslog restart
+
+dirs="/etc/service"
+
+echo "*** $self: zero 'current' files in $dirs"
+find -L $dirs -type f -name current -print |
+    while read f
+    do
+	true > $f
+    done
+
+dirs="/etc/service"
+if [ -d $dirs ] && find -L $dirs -type f | grep -q '.'
+then
+    names=`find -L $dirs -mindepth 1 -maxdepth 1 -printf '%f\n'`
+    echo "*** $self: restarting services" $names
+    sv restart $names >/dev/null
+fi
+
+# ---------------------------------------------------------------------------
+# clean up package lists
+# ---------------------------------------------------------------------------
+
+echo "*** $self: cleaning up APT lists and packages"
+apt-get clean
+rm -f /var/lib/apt/lists/* /var/lib/apt/lists/partial/* 2>/dev/null
+
+# ---------------------------------------------------------------------------
+# miscellaneous ...
+# ---------------------------------------------------------------------------
+
+rm -f /etc/resolv.conf.dhclient-*
+
+true
+
+# ---------------------------------------------------------------------------
+# End
+# ---------------------------------------------------------------------------

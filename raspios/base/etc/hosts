@@ -1,0 +1,21 @@
+# ipv4 only used here
+127.0.0.1	localhost
+127.0.1.1	raspberrypi
+
+# redpill/matrix node IDs for WAN interface, the 100.64.0.0/10
+# address space is typically used between service providers and
+# subscribers, see //en.wikipedia.org/wiki/Reserved_IP_addresses
+100.65.63.15	n0.wan
+100.65.4.15	n1.wan
+100.65.5.15	n2.wan
+100.65.6.15	n3.wan
+100.65.9.15	n4.wan
+
+# node IDs => name mapping for LAN interface
+192.168.66.63	n0.lan	loner
+192.168.66.7	n1.lan	enone
+192.168.66.8	n2.lan	entwo
+192.168.66.9	n3.lan	enthree
+192.168.66.11	n4.lan	enfour
+
+# End

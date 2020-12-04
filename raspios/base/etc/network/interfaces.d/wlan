@@ -1,0 +1,9 @@
+# build-in WiFi communication interface
+# to be configured as access point
+
+# automatically configure & start WiFi interface
+auto /wlan0
+iface wlan0 inet static
+   address 172.19.111.1/24
+
+# End

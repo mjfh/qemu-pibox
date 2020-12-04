@@ -1,0 +1,20 @@
+# Locally generated MAC addresses have 2,6,A or E as the second number.
+
+# LAN interfaces: lan<node-id> (see /etc/hosts, avoid lan0). Typically, the
+# MAC addresses for the built-in NIC start with b8:27:eb
+lan1 mac b8:27:eb:01:00:00
+lan2 mac b8:27:eb:00:20:00
+lan3 mac b8:27:eb:00:03:00
+lan4 mac b8:27:eb:00:00:40
+# ...
+
+# WAN internet interfaces (avoid wan0): These NICs are set up as pluggable
+# USB adapters with typical MAC addresses starting with 00:e0:4c (Realtek),
+# or with 00:0e:c7 (Motorola Korea), etc. Wildcard interface name might
+# work with a single adapter but show an odd behavior when using more than
+# one pluggable adapters.
+wan1 mac 00:e0:4c:01:00:00
+wan2 mac 00:0e:c7:00:02:00
+# ...
+
+# End

@@ -1,0 +1,75 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
+if redpill_ok
+then
+    # Stop DHCP running on all interfaces
+    # ---------------------------------------------------
+    if systemctl is-enabled dhcpcd >/dev/null
+    then
+	log_action_begin_msg "Disabling global DHCP"
+	systemctl disable dhcpcd &&
+	    log_action_cont_msg "REBOOT needed"
+	log_action_end_msg $?
+    else
+	# Ordered interfaces in the matrix, assign roles accordingly
+	# ----------------------------------------------------------
+	ifc_list=`available_interfaces`
+	ifrename_setup  wan0 $ifc_list
+
+	ifc_list=`shift_list $ifc_list`
+	ifrename_setup  lan0 $ifc_list
+
+	ifc_list=`shift_list $ifc_list`
+	ifrename_setup wlan0 $ifc_list
+
+	# Find node ID
+	# ---------------------------------------------------
+	ipa=`ip_address wan0`
+	log_action_begin_msg "WAN address $ipa"
+
+	node=`node_id $ipa`
+	log_action_cont_msg "node ID $node"
+	log_action_end_msg 0
+
+	# Configure LAN interface for this node ID
+	# ---------------------------------------------------------
+	ipa=`node_addr lan $node`
+	log_action_begin_msg "Assign IP address $ipa to lan0"
+
+	ip addr add $ipa/24 dev lan0
+	log_action_end_msg $?
+
+	# Set up host name for this node ID
+	# ----------------------------------------------------------
+	hostname `host_name $node`
+	log_action_msg "Hostname: `hostname`"
+    fi
+else
+    # Find node ID => configure LAN interface
+    # ---------------------------------------------------
+    node=`interface_nid lan`
+    log_action_begin_msg "Found LAN interface lan$node"
+
+    ipa=`node_addr lan $node`
+    log_action_cont_msg "assign $ipa"
+
+    ip addr add $ipa/24 dev lan$node
+    log_action_end_msg $?
+
+    # Set up host name for this node ID
+    # ----------------------------------------------------------
+    hostname `host_name $node`
+    log_action_msg "Hostname: `hostname`"
+fi
+
+# -----------------------------------------------------------------------------
+# End
+# -----------------------------------------------------------------------------

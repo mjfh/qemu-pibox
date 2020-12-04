@@ -1,0 +1,12 @@
+#!/bin/sh
+#
+# rc.local
+
+# run setup scripts
+if test -d /etc/boot.d
+then
+    run-parts --lsbsysinit /etc/boot.d
+fi
+
+exit 0
+# End

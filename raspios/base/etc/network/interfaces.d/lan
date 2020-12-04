@@ -1,0 +1,12 @@
+# build-in ethernet interface
+# used for local pi-to-pi communication
+
+# automatically start LAN interface
+# ip address to be set manually (e.g. /etc/rc.local)
+auto /lan[1-9]*=lan
+iface lan inet manual
+
+# special rule for lan0 manual assignment
+iface lan0 inet manual
+
+# End

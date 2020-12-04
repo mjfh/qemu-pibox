@@ -1,0 +1,6 @@
+# Loopback -- automatic start
+
+auto lo
+iface lo inet loopback
+
+# End

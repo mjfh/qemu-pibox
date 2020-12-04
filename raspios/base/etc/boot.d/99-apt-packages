@@ -1,0 +1,12 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+log=`apt_missing_log_file`
+
+[ -z "$log" ] ||
+    log_action_msg "Missing APT packages are reported in \"$log\""
+
+# End

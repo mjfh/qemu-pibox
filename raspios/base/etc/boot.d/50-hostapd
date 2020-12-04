@@ -1,0 +1,84 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+# ----------------------------------------------------------------------------
+# Main
+# ----------------------------------------------------------------------------
+
+# Wifi channel assignment table
+wtab=/etc/wifitab
+
+# Hostapd configuration file
+hostapd_conf=/etc/hostapd/hostapd.conf
+
+# Temporary config file to be generated on the fly
+temp_conf=/tmp/do-wifi.conf
+
+# Real configuration file, generated from $wifi_conf.in
+wifi_conf=/etc/hostapd/wifi.conf
+
+# Find wifi settings and install config file from template
+# ---------------------------------------------------------
+name=`hostname`;                                      : ${name:=loner}
+channel=`awk '$1 == "'"$name"'" {print $2}' "$wtab"`; : ${channel:=1}
+netname=`awk '$1 == "'"$name"'" {print $3}' "$wtab"`; : ${netname:=lonely}
+
+# Temporarily store configuration in /tmp directory
+# ---------------------------------------------------------
+log_action_begin_msg "Update configuration for $name@channel#$channel"
+rm -f          "$tmp_conf~"
+mv "$tmp_conf" "$tmp_conf~" 2>/dev/null || true
+sed -e '/^#REM#/d' \
+    -e 's/@HOSTNAME@/'"$name"'/g' \
+    -e 's/@CHANNEL@/'"$channel"'/g' \
+    -e 's/@NETNAME@/'"$netname"'/g' \
+    "$wifi_conf.in" > "$temp_conf"
+log_action_end_msg $?
+
+# Activate configuration, install hostapd.conf as link to wifi.conf
+# -----------------------------------------------------------------
+log_action_begin_msg "Activate configuration for $name@channel#$channel"
+if [ -f "$hostapd_conf" ] && cmp -s "$hostapd_conf" "$temp_conf"
+then
+    rm -f "$temp_conf"
+    log_action_cont_msg "nothing to do"
+else
+    log_action_cont_msg "update hostapd.conf"
+
+    # Get hostapd.conf out of the way
+    if [ -h "$hostapd_conf" ]
+    then
+	rm -f "$hostapd_conf"
+    elif [ -f "$hostapd_conf" ]
+    then
+	rm -f              "$hostapd_conf~"
+	mv "$hostapd_conf" "$hostapd_conf~" 2>/dev/null || true
+    fi
+
+    # Get wifi.conf out of the way
+    rm -f           "$wifi_conf~"
+    mv "$wifi_conf" "$wifi_conf~" 2>/dev/null || true
+
+    # Install new configuration
+    mv "$temp_conf" "$wifi_conf"
+    ln -sf `basename "$wifi_conf"` "$hostapd_conf"
+fi
+log_action_end_msg 0
+
+# Activate server if installed
+# -----------------------------------------------------------------
+if redpill_ok
+then
+    true
+elif which hostapd >/dev/null
+then
+    rfkill unblock wlan
+    start_services hostapd
+fi
+
+# ----------------------------------------------------------------------------
+# End
+# ----------------------------------------------------------------------------

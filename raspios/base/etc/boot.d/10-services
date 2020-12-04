@@ -1,0 +1,30 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+# ----------------------------------------------------------------------------
+# Main
+# ----------------------------------------------------------------------------
+
+# Stop bluetooth, no need for that here
+disable_services hciuart bluetooth rpi-eeprom-update
+
+# Always start SSH
+enable_services ssh
+
+# List of services: disable in the matrix, otherwise enable
+either_or="rpi-eeprom-update"
+
+if redpill_ok
+then
+    # dhcpcd is diabled in 20-interfaces (special treatment)
+    disable_services $either_or hostapd
+else
+    enable_services $either_or dhcpcd
+fi
+
+# ----------------------------------------------------------------------------
+# End
+# ----------------------------------------------------------------------------

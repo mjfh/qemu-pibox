@@ -1,0 +1,22 @@
+#! /bin/sh
+#
+# To install an executable command script "pibox" in your path that
+# starts "pibox.sh" from the package folder do the following:
+#
+#   + set the path for the "base" variable
+#   + copy it to a local bin directory mentioned by the PATH variable
+#   + rename this script coopy in the local bin directory as "pibox"
+#   + make it executable with: chmod +x pibox
+#
+# To install other starters, eg for "pijack.sh":
+#
+#  + in the local bin directory, install the starter for "pijack" as
+#    a link to "pibox" with: ln -s pibox pijack
+#
+
+base=/path/to/pibix/package/folder
+self=`basename $0`
+
+exec /bin/sh $base/$self.sh "$@"
+
+# End

@@ -1,0 +1,33 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+# -----------------------------------------------------------------------------
+# Main
+# -----------------------------------------------------------------------------
+
+if redpill_ok
+then
+    true
+else
+    # Initialise DS1307 hardware clock (might not be present though)
+    # --------------------------------------------------------------
+    log_action_begin_msg "Initalising real time clock"
+
+    if grep -q '^dtparam=i2c_arm=on' /boot/config.txt
+    then
+	(echo ds1307 0x68 >/sys/class/i2c-adapter/i2c-1/new_device) 2>/dev/null
+    else
+	log_action_cont_msg "enable i2c"
+	sed -i~ 's/^# *\(dtparam=i2c_arm=on\)/\1/' /boot/config.txt
+	log_action_cont_msg "REBOOT NEEDED"
+    fi
+
+    log_action_end_msg $?
+fi
+
+# -----------------------------------------------------------------------------
+# End
+# -----------------------------------------------------------------------------

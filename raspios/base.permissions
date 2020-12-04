@@ -1,0 +1,9 @@
+# enable rc.local boot scripts
+/etc/rc.local			root:root	755
+/etc/boot.d/00-apt-packages	root:root	755
+/etc/boot.d/10-services		root:root	755
+/etc/boot.d/20-interfaces	root:root	755
+/etc/boot.d/50-hostapd		root:root	755
+/etc/boot.d/60-rtc-ds1307	root:root	755
+/etc/boot.d/99-apt-packages	root:root	755
+# End

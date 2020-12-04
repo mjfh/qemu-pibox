@@ -1,0 +1,52 @@
+#REM# Template file for hostapd configuration.
+#REM#
+#REM# The following symbols are substituted:
+#REM#
+#REM#   @HOSTNAME@   -- system hostname
+#REM#   @CHANNEL@    -- WiFi channel number
+#REM#   @NETNAME@    -- WiFi network name, SSID
+#REM#
+#REM# Also, lines beginning with #REM# will be deleted.
+#REM#
+# hostapd: @HOSTNAME@@channel#@CHANNEL@
+#
+interface=wlan0
+driver=nl80211
+logger_syslog=-1
+logger_syslog_level=2
+logger_stdout=-1
+logger_stdout_level=2
+ctrl_interface=/var/run/hostapd
+ctrl_interface_group=0
+country_code=GB
+hw_mode=g
+beacon_int=100
+auth_algs=1
+ignore_broadcast_ssid=0
+
+wpa=2
+wpa_key_mgmt=WPA-PSK
+wpa_pairwise=CCMP
+wpa_psk_file=/etc/hostapd/wifi.wpa_psk
+
+time_advertisement=2
+time_zone=Europe/London
+
+interworking=1
+access_network_type=0
+internet=0
+venue_group=7
+venue_type=1
+ieee80211n=0
+
+# 0 = accept unless in deny list
+# 1 = deny unless in accept list
+macaddr_acl=0
+# accept_mac_file=/etc/hostapd/wifi.accept
+deny_mac_file=/etc/hostapd/wifi.deny
+
+# Per-hostname configuration follows
+channel=@CHANNEL@
+ssid=@NETNAME@
+
+# End

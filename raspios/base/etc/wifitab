@@ -1,0 +1,12 @@
+# Wifi configuration table.
+#
+# This table depends on the hostname which in turn depends on the node name
+# as defined in /etc/hosts. For information about channel selection, see
+# //en.wikipedia.org/wiki/List_of_WLAN_channels
+#
+# <hostname> <channel#> <ssid>
+loner	5	all-loners
+enone	1	one-loner
+entwo	5	two-loners
+enthree	9	three-loners
+enfour	13	four-loners

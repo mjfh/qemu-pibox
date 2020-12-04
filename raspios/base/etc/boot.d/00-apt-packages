@@ -1,0 +1,13 @@
+#! /bin/sh
+#
+# make it executable to be executed by /etc/rc.local
+
+. /etc/boot.d/functions.sh
+
+# Reset logfile
+clear_missing_log
+
+# Report missing APT packages
+required_command ifrename
+
+# End
