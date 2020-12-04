@@ -24,6 +24,7 @@ clean:
 	rm -f *~ */*~
 
 distclean:
+	rm -f README.html
 	find . -name \*~ -type f|while read f;do(set -x;rm "$$f");done
 
 # End
