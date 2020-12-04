@@ -307,10 +307,3 @@ This is free and unencumbered software released into the public domain.
 
 See [UNLICENSE](UNLICENSE "Local Copy of Unlicense") or
 [Unlicense project](http://unlicense.org/ "Web Location") for details.
-
-[//]: # (Local Variables:)
-[//]: # (mode: markdown)
-[//]: # (comment-column: 0)
-[//]: # (comment-start: "[//]: # (")
-[//]: # (comment-end: ")")
-[//]: # (End:)
