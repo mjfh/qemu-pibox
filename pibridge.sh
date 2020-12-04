@@ -23,7 +23,7 @@ ARGSUSAGE="[options] [--]"
 . $prefix/lib/sudo-bridge.sh
 
 # Reset global variables
-unset ADDBRIDGE RMBRIDGE OUTBOUND BRINFO
+unset ADDBRIDGE RMBRIDGE OUTBOUND INBOUND BRINFO
 
 readonly short_stdopts="Ddvh"
 readonly long_stdopts="dry-run,debug,verbose,help"
@@ -41,7 +41,7 @@ pibridge_debug_vardump () {
     [ -z "$DEBUG" ] ||
 	mesg `dump_vars \
 	       HELP DEBUG NOISY RUNPFX OPTIONS \
-	       ADDBRIDGE RMBRIDGE OUTBOUND BRINFO`
+	       ADDBRIDGE RMBRIDGE OUTBOUND INBOUND BRINFO`
 }
 
 pibridge_info () {
@@ -60,6 +60,9 @@ pibridge_info () {
     Adminstator Privilege
       This tool uses "sudo" for executing "ip link" commands with administrator
       privileges, needed to set up administer the bridge.
+
+      Using the --router-interface, the "ip addr" command is also run with
+      "sudo".
 EOF
 }
 
@@ -75,6 +78,7 @@ pibridge_help () {
     readonly _a="set up bridge for active virtual QEMU <lan> interfaces"
     readonly _A="remove virtual <lan> interfaces bridge"
     readonly _o="add non-virtual interface to bridge, implies --add-bridge"
+    readonly _r="add ip address to bridge, implies --add-bridge"
 
     local n=18
     local f="%8s -%s, --%-${n}s -- %s\n"
@@ -85,6 +89,7 @@ pibridge_help () {
 
     printf "$f" Options: b add-bridge         "$_a"
     printf "$f" ""       B remove-bridge      "$_A"
+    printf "$f" ""       r router-interface   "$_r"
     printf "$f" ""       o outbound-interface "$_o"
     echo
 
@@ -96,8 +101,10 @@ pibridge_help () {
 }
 
 pibridge_parse_options () {
-    local so="${short_stdopts}bBo:"
-    local lo="${long_stdopts},add-bridge,remove-bridge,outbound-interface:"
+    local so="${short_stdopts}bBo:r"
+    local lo="${long_stdopts},add-bridge,remove-bridge"
+
+    lo="${lo},outbound-interface:,router-interface"
 
     getopt -Q -o "$so" -l "$lo" -n "$self" -s sh -- "$@" || usage
     eval set -- `getopt -o "$so" -l "$lo" -n"$self" -s sh -- "$@"`
@@ -113,6 +120,7 @@ pibridge_parse_options () {
 	    -b|--add-bridge)         ADDBRIDGE=set; shift  ; continue ;;
 	    -B|--remove-bridge)      RMBRIDGE=set ; shift  ; continue ;;
 	    -o|--outbound-interface) OUTBOUND="$2"; shift 2; continue ;;
+	    -r|--router-interface)   INBOUND=set  ; shift  ; continue ;;
 
 	    --)	shift; break ;;
 	    *)	fatal "parse_options: unexpected case \"$1\""
@@ -126,7 +134,7 @@ pibridge_parse_options () {
 	usage "No more commands line arguments"
 
     # implied options for set expressions
-    [ -z "$OUTBOUND"           ] || ADDBRIDGE=set
+    [ -z "$OUTBOUND$INBOUND" ] || ADDBRIDGE=set
 
     # implied options for unset expressions
     [ -n "$RMBRIDGE" ] || BRINFO=set
@@ -165,6 +173,33 @@ pibridge_print_bridged_or_qemu () {
     } | sort -u
 }
 
+# print first ifc
+pibridge_print_ifc_ip () { # syntax: <interface>
+    local ifc="$1"
+    ip addr show dev "$ifc" | sort |
+	awk '$1 == "inet" {
+                 split ($2, ip, "/")
+                 print ip [1]
+		 exit
+             }'
+}
+
+pibridge_ifexists_ok () { # syntax: <interface>
+    local ifc="$1"
+    ip link show dev "$ifc" >/dev/null 2>&1
+}
+
+pibridge_ifup_ok () { # syntax: <interface>
+    local ifc="$1"
+    ip link show dev "$ifc" | grep -q ',LOWER_UP'
+}
+
+pibridge_bridged_ok () { # syntax: <interface> <bridge>
+    local ifc="$1"
+    local  br="$2"
+    ip link show dev "$ifc" | grep -q " master $br "
+}
+
 # -----------------------------------------------------------------------------
 # MAIN
 # -----------------------------------------------------------------------------
@@ -189,6 +224,14 @@ then
 	doadm_bridge_add "$bridge"
     doadm_interface_up "$bridge"
 
+    if [ -n "$INBOUND" ]
+    then
+	ipw=`pibridge_print_router_address`
+
+	ip addr show dev "$bridge" | grep -q "$ipw" ||
+	    doadm_interface_add_ip "$bridge" "$ipw"
+    fi
+
     # add virtual TAP interfaces to the bridge
     ifc_list=`pibridge_print_qemu_ifcs`
     for ifc in $ifc_list
@@ -208,7 +251,10 @@ fi
 
 if [ -n "$RMBRIDGE" ]
 then
-    doadm_bridge_flush "$bridge"
+    if pibridge_ifexists_ok "$bridge"
+    then
+	doadm_bridge_flush "$bridge"
+    fi
 fi
 
 # -----------------------------------------------------------------------------
@@ -223,34 +269,54 @@ then
     printf "$fmt" id name lan/ip interface virtual bridged " up"
     echo --------------------------------------------------------------
 
+    if pibridge_ifexists_ok "$bridge"
+    then
+	ipa=`pibridge_print_ifc_ip "$bridge"`
+
+	if pibridge_ifup_ok "$bridge"
+	then
+	    up=yes
+	else
+	    up=no
+	fi
+
+	printf "$fmt" "" bridge "$ipa" " $bridge" "no  " "" "$up"
+    fi
+
     ifc_list=`pibridge_print_bridged_or_qemu`
     for ifc in $ifc_list
     do
 	vok=no
 	vid=
 	vname=
-	vip=
+	ipa=
 	case "$ifc" in
 	    $tappfx*)
 		vok=yes
 		vid=`expr "$ifc" : "$tappfx\(.*\)"`
 		vname=`instance_to_name "$vid"`
-		vip=`instance_lan_address "$id"`
+		ipa=`instance_lan_address "$id"`
+		;;
+	    *)	ipa=`pibridge_print_ifc_ip "$ifc"`
 	esac
 
 	brok=yes
-	ip link show dev "$ifc" | grep -q " master $bridge " || {
+	if pibridge_bridged_ok "$ifc" "$bridge"
+	then
+	    brok=yes
+	else
 	    brok=no
-	    vip=
-	}
+	fi
 
-	up=yes
-	ip link show dev "$ifc" | grep -q ',LOWER_UP' || {
+	if pibridge_ifup_ok "$ifc"
+	then
+	    up=yes
+	else
 	    up=no
 	    vip=
-	}
+	fi
 
-	printf "$fmt" "$vid" "$vname" "$vip" " $ifc" "$vok  " "$brok  " "$up"
+	printf "$fmt" "$vid" "$vname" "$ipa" " $ifc" "$vok  " "$brok  " "$up"
     done
     echo
 fi

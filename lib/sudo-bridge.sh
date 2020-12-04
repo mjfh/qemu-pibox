@@ -48,6 +48,15 @@ doadm_bridge_add_interface () { # syntax: <bridge> <interface>
      $RUNPFX $SUDO ip link set "$ifc" master "$br")
 }
 
+doadm_interface_add_ip () { # syntax: <interface> <ip/width>
+    local ifc="$1"
+    local ipw="$2"
+
+    ([ -z "$NOISY" ] || set -x;
+
+     $RUNPFX $SUDO ip addr add "$ipw" dev "$ifc")
+}
+
 # -----------------------------------------------------------------------------
 # End
 # -----------------------------------------------------------------------------
