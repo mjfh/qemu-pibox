@@ -610,6 +610,25 @@ pijack_ssh_post_install () { # syntax: <script-file> ...
 	    fi
 }
 
+pijack_ssh_autoremove () {
+    local apt_arm="apt -qy autoremove; apt -q clean"
+    local    port=`instance_ssh_port "$QID"`
+    local run_ssh="$ssh_batch -t -p$port root@localhost"
+    local   error="Error cleaning up post installation on instance <$QID>"
+
+    pijack_verify_ssh_available
+
+    # purge unused packages
+    if [ -n "$DEBUG" ]
+    then
+	runcmd $run_ssh $apt_arm /bin/sh ||
+	    croak "$error"
+    else
+	runcmd3 $run_ssh $apt_arm /bin/sh 3>&2 2>&1 ||
+	    croak "$error"
+    fi
+}
+
 # -----------------------------------------------------------------------------
 # Set file permissions on guest system
 # -----------------------------------------------------------------------------
@@ -842,13 +861,18 @@ then
 
     pijack_verify_rcp "" / "$raspios_local_d" $GUEST_INSTALL
 
-    pijack_ssh_set_permissions \
-	"$raspios_local_d.permissions" \
-	${GUEST_INSTALL:+$GUEST_INSTALL.permissions}
+    perms="${GUEST_INSTALL:+$GUEST_INSTALL.permissions}"
+    pinst="${GUEST_INSTALL:+$GUEST_INSTALL.post-install}"
 
-    pijack_ssh_post_install \
-	"$raspios_base_d.post-install" \
-	${GUEST_INSTALL:+$GUEST_INSTALL.post-install}
+    pijack_ssh_set_permissions "$raspios_local_d.permissions" $perms
+
+    if [ -s "$pinst" ]
+    then
+	pijack_ssh_post_install "$raspios_base_d.post-install" $pinst
+
+	mesg "Auto-removing orphaned APT packages for instance <$QID>"
+	pijack_ssh_autoremove
+    fi
 fi
 
 # -----------------------------------------------------------------------------
