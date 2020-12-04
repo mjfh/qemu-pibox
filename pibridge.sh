@@ -129,7 +129,7 @@ pibridge_parse_options () {
     [ -z "$OUTBOUND"           ] || ADDBRIDGE=set
 
     # implied options for unset expressions
-    [ -n "$ADDBRIDGE$RMBRIDGE" ] || BRINFO=set
+    [ -n "$RMBRIDGE" ] || BRINFO=set
 
     # imcompatible option combinations
     [ -z "$ADDBRIDGE" -o -z "$RMBRIDGE" ] ||
@@ -217,34 +217,40 @@ fi
 
 if [ -n "$BRINFO" ]
 then
-    fmt="%2s %10s  %-10s %7s %8s %s\n"
+    fmt="%2s %10s  %-13s %-10s %7s %8s %s\n"
 
     echo
-    printf "$fmt" id name interface virtual bridged " up"
-    echo -----------------------------------------------
+    printf "$fmt" id name lan/ip interface virtual bridged " up"
+    echo --------------------------------------------------------------
 
     ifc_list=`pibridge_print_bridged_or_qemu`
     for ifc in $ifc_list
     do
-	brok=yes
-	ip link show dev "$ifc" | grep -q " master $bridge " ||
-	    brok=no
-
 	vok=no
 	vid=
 	vname=
+	vip=
 	case "$ifc" in
 	    $tappfx*)
 		vok=yes
 		vid=`expr "$ifc" : "$tappfx\(.*\)"`
 		vname=`instance_to_name "$vid"`
+		vip=`instance_lan_address "$id"`
 	esac
 
-	up=yes
-	ip link show dev "$ifc" | grep -q ',LOWER_UP' ||
-	    up=no
+	brok=yes
+	ip link show dev "$ifc" | grep -q " master $bridge " || {
+	    brok=no
+	    vip=
+	}
 
-	printf "$fmt" "$vid" "$vname" " $ifc" "$vok  " "$brok  " "$up"
+	up=yes
+	ip link show dev "$ifc" | grep -q ',LOWER_UP' || {
+	    up=no
+	    vip=
+	}
+
+	printf "$fmt" "$vid" "$vname" "$vip" " $ifc" "$vok  " "$brok  " "$up"
     done
     echo
 fi
