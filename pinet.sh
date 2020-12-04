@@ -38,14 +38,14 @@ set +e
 # Command line helper functions
 # -----------------------------------------------------------------------------
 
-pibridge_debug_vardump () {
+pinet_debug_vardump () {
     [ -z "$DEBUG" ] ||
 	mesg `dump_vars \
 	       HELP DEBUG NOISY RUNPFX OPTIONS \
 	       ADDBRIDGE RMBRIDGE OUTBOUND INBOUND BRINFO`
 }
 
-pibridge_info () {
+pinet_info () {
     local qemu_cmd=`list_first $qemu_system_cmd`
 
     cat <<EOF
@@ -60,28 +60,31 @@ pibridge_info () {
 
     Adminstator Privilege
       This tool uses "sudo" for executing "ip link" commands with administrator
-      privileges, needed to set up administer the bridge.
+      privileges, needed to set up and administer the bridge.
 
-      Using the --router-interface, the "ip addr" command is also run with
-      "sudo".
+      Using the options --router-interface, --wlan-activate, ot --wlan-remove,
+      the "ip addr" command is run with administrator privileges via "sudo".
 EOF
 }
 
-pibridge_help () {
-    echo "Virtual bridge setup"
+pinet_help () {
+    echo "Virtual bridged network setup"
 
     [ -z "$NOISY" ] ||
-	pibridge_info
+	pinet_info
 
     disclaimer_once
 
     local cmdl_arg="use particular WLAN instance"
+    local      _fi="for instance <id>"
 
     # use readonly for checking option letter uniqueness
     readonly _a="set up bridge for active virtual QEMU <lan> interfaces"
     readonly _A="remove virtual <lan> interfaces bridge"
     readonly _o="add non-virtual interface to bridge, implies --add-bridge"
     readonly _r="add ip address to bridge, implies --add-bridge"
+    readonly _w="add ip address to host end of WLAN interface $_fi"
+    readonly _W="flush ip addresses from all host ends of WLAN interfaces"
 
     local n=18
     local f="%8s -%s, --%-${n}s -- %s\n"
@@ -89,7 +92,7 @@ pibridge_help () {
     echo
     echo "Usage: $self $ARGSUSAGE"
     echo
-    echo "Instance: <id> or <alias>      -- $cmdl_arg"
+    echo "Instance: <id> or <alias>         -- $cmdl_arg"
     echo
 
     printf "$f" Options: b add-bridge         "$_a"
@@ -108,7 +111,7 @@ pibridge_help () {
     exit
 }
 
-pibridge_parse_options () {
+pinet_parse_options () {
     local so="${short_stdopts}bBo:rwW"
     local lo="${long_stdopts},add-bridge,remove-bridge"
 
@@ -139,7 +142,7 @@ pibridge_parse_options () {
     done
 
     [ -z "$HELP" ] ||
-	pibridge_help
+	pinet_help
 
     # [ 0 -eq $# ] ||
     #	usage "No more commands line arguments"
@@ -171,7 +174,7 @@ pibridge_parse_options () {
 # Helper functions
 # -----------------------------------------------------------------------------
 
-pibridge_print_wlan_address () {
+pinet_print_wlan_address () {
     awk '$1 == "address" && $2 ~ /^[0-9./]*$/ {
 	    split ($2, ip, ".")
             split (ip [4], wd, "/")
@@ -180,48 +183,48 @@ pibridge_print_wlan_address () {
 	 }' "$raspios_base_d/etc/network/interfaces.d/wlan"
 }
 
-pibridge_print_wlan_ifcs () {
+pinet_print_wlan_ifcs () {
     ip link show |
 	awk '$2 ~ /^'"$wlanpfx"'[0-9][0-9]*:$/ {
                 print substr ($2, 1, length ($2) - 1)
              }'
 }
 
-pibridge_flush_wlan_ifcs () {
+pinet_flush_wlan_ifcs () {
     local ifc=
-    for ifc in `pibridge_print_wlan_ifcs`
+    for ifc in `pinet_print_wlan_ifcs`
     do
 	doadm_interface_flush_ip "$ifc"
     done
 }
 
-pibridge_print_router_address () {
+pinet_print_router_address () {
     instance_lan_address 0 | sed 's|\.[0-9]*$|.1/24|'
 }
 
-pibridge_print_qemu_ifcs () {
+pinet_print_qemu_ifcs () {
     ip link show |
 	awk '$2 ~ /^'"$tappfx"'[0-9][0-9]*:$/ {
                 print substr ($2, 1, length ($2) - 1)
              }'
 }
 
-pibridge_print_bridged_ifcs () {
+pinet_print_bridged_ifcs () {
     ip link show |
 	awk '/ master '"$bridge"' / && $2 ~ /:$/ {
 	        print substr ($2, 1, length ($2) - 1)
 	     }'
 }
 
-pibridge_print_bridged_or_qemu () {
+pinet_print_bridged_or_qemu () {
     {
-	pibridge_print_qemu_ifcs
-	pibridge_print_bridged_ifcs
+	pinet_print_qemu_ifcs
+	pinet_print_bridged_ifcs
     } | sort -u
 }
 
 # print first ifc
-pibridge_print_ifc_ip () { # syntax: <interface>
+pinet_print_ifc_ip () { # syntax: <interface>
     local ifc="$1"
     ip addr show dev "$ifc" | sort |
 	awk '$1 == "inet" {
@@ -231,23 +234,23 @@ pibridge_print_ifc_ip () { # syntax: <interface>
              }'
 }
 
-pibridge_ifexists_ok () { # syntax: <interface>
+pinet_ifexists_ok () { # syntax: <interface>
     local ifc="$1"
     ip link show dev "$ifc" >/dev/null 2>&1
 }
 
-pibridge_ifip_ok () { # syntax: <interface> <ip>
+pinet_ifip_ok () { # syntax: <interface> <ip>
     local ifc="$1"
     local  ip="$2"
     ip addr show dev "$ifc" | grep -q "$ip"
 }
 
-pibridge_ifup_ok () { # syntax: <interface>
+pinet_ifup_ok () { # syntax: <interface>
     local ifc="$1"
     ip link show dev "$ifc" | grep -q ',LOWER_UP'
 }
 
-pibridge_bridged_ok () { # syntax: <interface> <bridge>
+pinet_bridged_ok () { # syntax: <interface> <bridge>
     local ifc="$1"
     local  br="$2"
     ip link show dev "$ifc" | grep -q " master $br "
@@ -259,9 +262,9 @@ pibridge_bridged_ok () { # syntax: <interface> <bridge>
 
 verify_not_root_user
 
-pibridge_parse_options "$@"
+pinet_parse_options "$@"
 
-pibridge_debug_vardump
+pinet_debug_vardump
 
 verify_required_commands
 verify_important_commands
@@ -274,11 +277,11 @@ if [ -n "$WLANON" ]
 then
     wifc="$wlanpfx$QID"
 
-    if pibridge_ifexists_ok "$wifc"
+    if pinet_ifexists_ok "$wifc"
     then
-	pibridge_flush_wlan_ifcs
+	pinet_flush_wlan_ifcs
 
-	ipw=`pibridge_print_wlan_address`
+	ipw=`pinet_print_wlan_address`
 
 	doadm_interface_up     "$wifc"
 	doadm_interface_add_ip "$wifc" "$ipw"
@@ -293,7 +296,7 @@ fi
 
 if [ -n "$WLANOFF" ]
 then
-    pibridge_flush_wlan_ifcs
+    pinet_flush_wlan_ifcs
 fi
 
 # -----------------------------------------------------------------------------
@@ -309,14 +312,14 @@ then
 
     if [ -n "$INBOUND" ]
     then
-	ipw=`pibridge_print_router_address`
+	ipw=`pinet_print_router_address`
 
 	ip addr show dev "$bridge" | grep -q "$ipw" ||
 	    doadm_interface_add_ip "$bridge" "$ipw"
     fi
 
     # add virtual TAP interfaces to the bridge
-    ifc_list=`pibridge_print_qemu_ifcs`
+    ifc_list=`pinet_print_qemu_ifcs`
     for ifc in $ifc_list
     do
 	doadm_interface_up                   "$ifc"
@@ -334,7 +337,7 @@ fi
 
 if [ -n "$RMBRIDGE" ]
 then
-    if pibridge_ifexists_ok "$bridge"
+    if pinet_ifexists_ok "$bridge"
     then
 	doadm_bridge_flush "$bridge"
     fi
@@ -346,18 +349,18 @@ fi
 
 if [ -n "$BRINFO" ]
 then
-    ipw=`pibridge_print_wlan_address`
+    ipw=`pinet_print_wlan_address`
     fmt="%2s %10s  %-13s %-10s %-4s  %7s %8s %s\n"
 
     echo
     printf "$fmt" id name lan/ip interface " wlan" virtual bridged " up"
     echo ----------------------------------------------------------------------
 
-    if pibridge_ifexists_ok "$bridge"
+    if pinet_ifexists_ok "$bridge"
     then
-	ipa=`pibridge_print_ifc_ip "$bridge"`
+	ipa=`pinet_print_ifc_ip "$bridge"`
 
-	if pibridge_ifup_ok "$bridge"
+	if pinet_ifup_ok "$bridge"
 	then
 	    up=yes
 	else
@@ -365,10 +368,10 @@ then
 	fi
 
 	printf "$fmt" \
-	       "" bridge "$ipa" " $bridge" "" "no  " "" "$up"
+	       "" bridge "$ipa" " $bridge" "" "no  " "" " $up"
     fi
 
-    ifc_list=`pibridge_print_bridged_or_qemu`
+    ifc_list=`pinet_print_bridged_or_qemu`
     for ifc in $ifc_list
     do
 	vok=no
@@ -384,17 +387,17 @@ then
 		ipa=`instance_lan_address "$id"`
 		wif=`echo "$ifc" | sed "s/^$tappfx/$wlanpfx/"`
 		;;
-	    *)	ipa=`pibridge_print_ifc_ip "$ifc"`
+	    *)	ipa=`pinet_print_ifc_ip "$ifc"`
 	esac
 
-	if pibridge_bridged_ok "$ifc" "$bridge"
+	if pinet_bridged_ok "$ifc" "$bridge"
 	then
 	    brok=yes
 	else
 	    brok=no
 	fi
 
-	if pibridge_ifup_ok "$ifc"
+	if pinet_ifup_ok "$ifc"
 	then
 	    up=yes
 	else
@@ -402,7 +405,7 @@ then
 	    vip=
 	fi
 
-	if [ -n "$wif" ] && pibridge_ifip_ok "$wif" "$ipw"
+	if [ -n "$wif" ] && pinet_ifip_ok "$wif" "$ipw"
 	then
 	    wok=yes
 	else
@@ -411,7 +414,7 @@ then
 
 	printf "$fmt" \
 	       "$vid" "$vname"    "$ipa"  " $ifc" " $wok" \
-	       "$vok  " "$brok  " "$up"
+	       "$vok  " "$brok  " " $up"
     done
     echo
 fi

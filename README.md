@@ -155,7 +155,7 @@ compatible.
   public key. The tool can hijack the guest instance via *console* login and
   prepare it for *SSH* with public key authentication.
 
-* *pibridge -- virtual bridge setup*<br>
+* *pinet -- virtual bridges network setup*<br>
   This tool scans the network interface table on the host system for
   active virtual QEMU guest *&lt;lan&gt;* interfaces. Then the tool adds these
   interfaces to a bridge. Seen from a virtual guest, all active interfaces
