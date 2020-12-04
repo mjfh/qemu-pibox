@@ -57,6 +57,14 @@ doadm_interface_add_ip () { # syntax: <interface> <ip/width>
      $RUNPFX $SUDO ip addr add "$ipw" dev "$ifc")
 }
 
+doadm_interface_flush_ip () { # syntax: <interface>
+    local ifc="$1"
+
+    ([ -z "$NOISY" ] || set -x;
+
+     $RUNPFX $SUDO ip addr flush dev "$ifc")
+}
+
 # -----------------------------------------------------------------------------
 # End
 # -----------------------------------------------------------------------------

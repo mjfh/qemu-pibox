@@ -30,6 +30,7 @@ readonly long_stdopts="dry-run,debug,verbose,help"
 
 readonly bridge=q0br
 readonly tappfx=q0tap
+readonly wlanpfx=q1tap
 
 set +e
 
@@ -74,6 +75,8 @@ pibridge_help () {
 
     disclaimer_once
 
+    local cmdl_arg="use particular WLAN instance"
+
     # use readonly for checking option letter uniqueness
     readonly _a="set up bridge for active virtual QEMU <lan> interfaces"
     readonly _A="remove virtual <lan> interfaces bridge"
@@ -86,11 +89,16 @@ pibridge_help () {
     echo
     echo "Usage: $self $ARGSUSAGE"
     echo
+    echo "Instance: <id> or <alias>      -- $cmdl_arg"
+    echo
 
     printf "$f" Options: b add-bridge         "$_a"
     printf "$f" ""       B remove-bridge      "$_A"
     printf "$f" ""       r router-interface   "$_r"
     printf "$f" ""       o outbound-interface "$_o"
+    echo
+    printf "$f" ""       w wlan-activate      "$_w"
+    printf "$f" ""       W wlan-remove        "$_W"
     echo
 
     stdopts_help "$short_stdopts" "$n"
@@ -101,17 +109,17 @@ pibridge_help () {
 }
 
 pibridge_parse_options () {
-    local so="${short_stdopts}bBo:r"
+    local so="${short_stdopts}bBo:rwW"
     local lo="${long_stdopts},add-bridge,remove-bridge"
 
     lo="${lo},outbound-interface:,router-interface"
+    lo="${lo},wlan-activate,wlan-remove"
 
     getopt -Q -o "$so" -l "$lo" -n "$self" -s sh -- "$@" || usage
     eval set -- `getopt -o "$so" -l "$lo" -n"$self" -s sh -- "$@"`
 
     stdopts_filter "$@"
     eval set -- $OPTIONS
-    unset ADDBRIDGE RMBRIDGE OUTBOUND
 
     # parse remaining option arguments
     while true
@@ -122,6 +130,9 @@ pibridge_parse_options () {
 	    -o|--outbound-interface) OUTBOUND="$2"; shift 2; continue ;;
 	    -r|--router-interface)   INBOUND=set  ; shift  ; continue ;;
 
+	    -w|--wlan-activate)      WLANON=set   ; shift  ; continue ;;
+	    -W|--wlan-remove)        WLANOFF=set  ; shift  ; continue ;;
+
 	    --)	shift; break ;;
 	    *)	fatal "parse_options: unexpected case \"$1\""
 	esac
@@ -130,23 +141,59 @@ pibridge_parse_options () {
     [ -z "$HELP" ] ||
 	pibridge_help
 
-    [ 0 -eq $# ] ||
-	usage "No more commands line arguments"
+    # [ 0 -eq $# ] ||
+    #	usage "No more commands line arguments"
+
+    # set QID variable
+    verify_set_instance "$@"
 
     # implied options for set expressions
     [ -z "$OUTBOUND$INBOUND" ] || ADDBRIDGE=set
 
     # implied options for unset expressions
-    [ -n "$RMBRIDGE" ] || BRINFO=set
+    [ -n "$RMBRIDGE$WLANON$WLANOFF" ] || BRINFO=set
 
     # imcompatible option combinations
     [ -z "$ADDBRIDGE" -o -z "$RMBRIDGE" ] ||
 	usage "Incompatible options --add-bridge and --remove-bridge"
+
+    [ -z "$WLANON" -o -z "$WLANOFF" ] ||
+	usage "Incompatible options --wlan-activate and --wlan-remove"
+
+    [ -z "$WLANON" -o 0 -lt $# ] ||
+	usage "Option --wlan-activate requries instance argument"
+
+    [ -n "$WLANON" -o 0 -eq $# ] ||
+	usage "Unsupported instance argument <$QID> without option"
 }
 
 # -----------------------------------------------------------------------------
 # Helper functions
 # -----------------------------------------------------------------------------
+
+pibridge_print_wlan_address () {
+    awk '$1 == "address" && $2 ~ /^[0-9./]*$/ {
+	    split ($2, ip, ".")
+            split (ip [4], wd, "/")
+            ip4 = wd [1] == 1 ? 2 : 1
+            print ip [1] "." ip [2] "." ip [3] "." ip4 "/" wd [2]
+	 }' "$raspios_base_d/etc/network/interfaces.d/wlan"
+}
+
+pibridge_print_wlan_ifcs () {
+    ip link show |
+	awk '$2 ~ /^'"$wlanpfx"'[0-9][0-9]*:$/ {
+                print substr ($2, 1, length ($2) - 1)
+             }'
+}
+
+pibridge_flush_wlan_ifcs () {
+    local ifc=
+    for ifc in `pibridge_print_wlan_ifcs`
+    do
+	doadm_interface_flush_ip "$ifc"
+    done
+}
 
 pibridge_print_router_address () {
     instance_lan_address 0 | sed 's|\.[0-9]*$|.1/24|'
@@ -189,6 +236,12 @@ pibridge_ifexists_ok () { # syntax: <interface>
     ip link show dev "$ifc" >/dev/null 2>&1
 }
 
+pibridge_ifip_ok () { # syntax: <interface> <ip>
+    local ifc="$1"
+    local  ip="$2"
+    ip addr show dev "$ifc" | grep -q "$ip"
+}
+
 pibridge_ifup_ok () { # syntax: <interface>
     local ifc="$1"
     ip link show dev "$ifc" | grep -q ',LOWER_UP'
@@ -212,6 +265,36 @@ pibridge_debug_vardump
 
 verify_required_commands
 verify_important_commands
+
+# -----------------------------------------------------------------------------
+# Add WLAN ip address
+# -----------------------------------------------------------------------------
+
+if [ -n "$WLANON" ]
+then
+    wifc="$wlanpfx$QID"
+
+    if pibridge_ifexists_ok "$wifc"
+    then
+	pibridge_flush_wlan_ifcs
+
+	ipw=`pibridge_print_wlan_address`
+
+	doadm_interface_up     "$wifc"
+	doadm_interface_add_ip "$wifc" "$ipw"
+    else
+	croak "Cannot access WLAN interface \"$wifc\" for instance <$QID>"
+    fi
+fi
+
+# -----------------------------------------------------------------------------
+# Flush WLAN ip address
+# -----------------------------------------------------------------------------
+
+if [ -n "$WLANOFF" ]
+then
+    pibridge_flush_wlan_ifcs
+fi
 
 # -----------------------------------------------------------------------------
 # Create bridge
@@ -263,11 +346,12 @@ fi
 
 if [ -n "$BRINFO" ]
 then
-    fmt="%2s %10s  %-13s %-10s %7s %8s %s\n"
+    ipw=`pibridge_print_wlan_address`
+    fmt="%2s %10s  %-13s %-10s %-4s  %7s %8s %s\n"
 
     echo
-    printf "$fmt" id name lan/ip interface virtual bridged " up"
-    echo --------------------------------------------------------------
+    printf "$fmt" id name lan/ip interface " wlan" virtual bridged " up"
+    echo ----------------------------------------------------------------------
 
     if pibridge_ifexists_ok "$bridge"
     then
@@ -280,7 +364,8 @@ then
 	    up=no
 	fi
 
-	printf "$fmt" "" bridge "$ipa" " $bridge" "no  " "" "$up"
+	printf "$fmt" \
+	       "" bridge "$ipa" " $bridge" "" "no  " "" "$up"
     fi
 
     ifc_list=`pibridge_print_bridged_or_qemu`
@@ -290,17 +375,18 @@ then
 	vid=
 	vname=
 	ipa=
+	wif=
 	case "$ifc" in
 	    $tappfx*)
 		vok=yes
 		vid=`expr "$ifc" : "$tappfx\(.*\)"`
 		vname=`instance_to_name "$vid"`
 		ipa=`instance_lan_address "$id"`
+		wif=`echo "$ifc" | sed "s/^$tappfx/$wlanpfx/"`
 		;;
 	    *)	ipa=`pibridge_print_ifc_ip "$ifc"`
 	esac
 
-	brok=yes
 	if pibridge_bridged_ok "$ifc" "$bridge"
 	then
 	    brok=yes
@@ -316,7 +402,16 @@ then
 	    vip=
 	fi
 
-	printf "$fmt" "$vid" "$vname" "$ipa" " $ifc" "$vok  " "$brok  " "$up"
+	if [ -n "$wif" ] && pibridge_ifip_ok "$wif" "$ipw"
+	then
+	    wok=yes
+	else
+	    wok=
+	fi
+
+	printf "$fmt" \
+	       "$vid" "$vname"    "$ipa"  " $ifc" " $wok" \
+	       "$vok  " "$brok  " "$up"
     done
     echo
 fi
