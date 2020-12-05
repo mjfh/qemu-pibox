@@ -354,7 +354,7 @@ then
 
     echo
     printf "$fmt" id name lan/ip interface " wlan" virtual bridged " up"
-    echo ----------------------------------------------------------------------
+    echo --------------------------------------------------------------------
 
     if pinet_ifexists_ok "$bridge"
     then

@@ -143,7 +143,7 @@ setup_help () {
 
     readonly _b="install base system configuration and boot scripts"
     readonly _l="install application software file system"
-    readonly _p="update RaspiOS on <0> instance (needs Internet on host)"
+    readonly _p="run APT package manager on instance (needs Internet on host)"
     readonly _W="shortcut for all of the three options above"
 
     readonly _U="create/update user account, access with SSH pubkey only"
@@ -164,7 +164,7 @@ setup_help () {
     printf "$f" ""       E enrol            "$_E"
     echo
     printf "$f" ""       b base-system      "$_b"
-    printf "$f" ""       p update-primary   "$_p"
+    printf "$f" ""       p apt-upgrade      "$_p"
     printf "$f" ""       l local-software   "$_l"
     printf "$f" ""       W software-update  "$_W"
     echo
@@ -186,7 +186,7 @@ setup_parse_options () {
     local so="${short_stdopts}ekxEblpWu:wsS"
     local lo="${long_stdopts},enable-ssh,ssh-authkey,expand-filesys"
 
-    lo="${lo},enrol,base-system,local-software,update-primary"
+    lo="${lo},enrol,base-system,local-software,apt-upgrade"
     lo="${lo},software-update,useradd:,sudo-user-ok,shutdown"
     lo="${lo},raw-shutdown"
 
@@ -209,7 +209,7 @@ setup_parse_options () {
 
 	    -b|--base-system)	  IBASEFS=set  ; shift  ; continue ;;
 	    -l|--local-software)  LOCALCNF=set ; shift  ; continue ;;
-	    -p|--update-primary)  APTUPDG=set  ; shift  ; continue ;;
+	    -p|--apt-upgrade)     APTUPDG=set  ; shift  ; continue ;;
 	    -W|--software-update) DOSOFTW=set  ; shift  ; continue ;;
 
 	    -u|--useradd)         USERADD="$2" ; shift 2; continue ;;
@@ -254,8 +254,6 @@ setup_parse_options () {
     # imcompatible option combinations
     [ -z "$USUDOOK" -o -n "$USERADD" ] ||
 	usage "Option --sudo-ok needs --useradd=NAME option"
-    [ -z "$APTUPDG" -o 0 -eq "$QID" ] ||
-	usage "Option --update-primary applies to the <0> instance, only"
 }
 
 # ----------------------------------------------------------------------------
