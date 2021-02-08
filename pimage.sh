@@ -176,7 +176,7 @@ pimage_parse_options () {
 	    -z|--mount-root)    RMOUNT=set  ; shift ; continue ;;
 	    -Z|--umount-root)   RUMOUNT=set ; shift ; continue ;;
 
-	    -S|--sudo-mount)    SUDOMNT=set ; shift ; continue ;;
+	    -P|--sudo-mount)    SUDOMNT=set ; shift ; continue ;;
 
 	    --)	shift; break ;;
 	    *)	fatal "parse_options: unexpected case \"$1\""
