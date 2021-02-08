@@ -40,9 +40,9 @@ readonly scp_nopw="scp    $sxx_opts $sxx_nop $sxx_batch"
 
 set +e
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Command line helper functions
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 pijack_debug_vardump () {
     [ -z "$DEBUG" ] ||
@@ -143,7 +143,7 @@ setup_help () {
 
     readonly _b="install base system configuration and boot scripts"
     readonly _l="install application software file system"
-    readonly _p="update RaspiOS on <0> instance (needs Internet on host)"
+    readonly _p="run APT package manager on instance (needs Internet on host)"
     readonly _W="shortcut for all of the three options above"
 
     readonly _U="create/update user account, access with SSH pubkey only"
@@ -164,7 +164,7 @@ setup_help () {
     printf "$f" ""       E enrol            "$_E"
     echo
     printf "$f" ""       b base-system      "$_b"
-    printf "$f" ""       p update-primary   "$_p"
+    printf "$f" ""       p apt-upgrade      "$_p"
     printf "$f" ""       l local-software   "$_l"
     printf "$f" ""       W software-update  "$_W"
     echo
@@ -186,7 +186,7 @@ setup_parse_options () {
     local so="${short_stdopts}ekxEblpWu:wsS"
     local lo="${long_stdopts},enable-ssh,ssh-authkey,expand-filesys"
 
-    lo="${lo},enrol,base-system,local-software,update-primary"
+    lo="${lo},enrol,base-system,local-software,apt-upgrade"
     lo="${lo},software-update,useradd:,sudo-user-ok,shutdown"
     lo="${lo},raw-shutdown"
 
@@ -209,7 +209,7 @@ setup_parse_options () {
 
 	    -b|--base-system)	  IBASEFS=set  ; shift  ; continue ;;
 	    -l|--local-software)  LOCALCNF=set ; shift  ; continue ;;
-	    -p|--update-primary)  APTUPDG=set  ; shift  ; continue ;;
+	    -p|--apt-upgrade)     APTUPDG=set  ; shift  ; continue ;;
 	    -W|--software-update) DOSOFTW=set  ; shift  ; continue ;;
 
 	    -u|--useradd)         USERADD="$2" ; shift 2; continue ;;
@@ -254,13 +254,11 @@ setup_parse_options () {
     # imcompatible option combinations
     [ -z "$USUDOOK" -o -n "$USERADD" ] ||
 	usage "Option --sudo-ok needs --useradd=NAME option"
-    [ -z "$APTUPDG" -o 0 -eq "$QID" ] ||
-	usage "Option --update-primary applies to the <0> instance, only"
 }
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Test and verify port availability
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 pijack_console_available_ok () {
     local port=`instance_console_port "$QID"`
@@ -610,6 +608,25 @@ pijack_ssh_post_install () { # syntax: <script-file> ...
 	    fi
 }
 
+pijack_ssh_autoremove () {
+    local apt_arm="apt -qy autoremove; apt -q clean"
+    local    port=`instance_ssh_port "$QID"`
+    local run_ssh="$ssh_batch -t -p$port root@localhost"
+    local   error="Error cleaning up post installation on instance <$QID>"
+
+    pijack_verify_ssh_available
+
+    # purge unused packages
+    if [ -n "$DEBUG" ]
+    then
+	runcmd $run_ssh $apt_arm /bin/sh ||
+	    croak "$error"
+    else
+	runcmd3 $run_ssh $apt_arm /bin/sh 3>&2 2>&1 ||
+	    croak "$error"
+    fi
+}
+
 # -----------------------------------------------------------------------------
 # Set file permissions on guest system
 # -----------------------------------------------------------------------------
@@ -677,8 +694,11 @@ pijack_ssh_useradd () { # syntax: <username> [<sudo-ok>]
                home=\`awk -F: '\$1==\"$name\"{print \$6}' /etc/passwd\`;
                auth_key=\$home/.ssh/authorized_keys;
                id_ecdsa=\$home/.ssh/id_ecdsa;
-               test -s \$id_ecdsa ||
+               test -s \$id_ecdsa || {
+                 mkdir -p \$home/.ssh;
+                 chown $name:$name \$home/.ssh;
                  ssh-keygen -q -t ecdsa -f \$id_ecdsa -N '';
+               }
                grep -qs '^$SSHPUBKEY' \$auth_key ||
 		 echo '$SSHPUBKEY' >> \$auth_key;
                pubkey=\`cat \$id_ecdsa.pub\`;
@@ -692,7 +712,7 @@ pijack_ssh_useradd () { # syntax: <username> [<sudo-ok>]
     runcmd echo "$cmd" |
 	if [ -n "$DEBUG" ]
 	then
-	    runcmd $run_ssh /bin/sh ||
+	    runcmd $run_ssh /bin/sh -x ||
 		croak "$error"
 	else
 	    runcmd3 $run_ssh /bin/sh 3>&2 2>&1 ||
@@ -775,9 +795,11 @@ then
 	mesg "Console login for user \"pi\", attempt ($n)"
 	n=`expr $n + 1`
 
-	pijack_console_enable_ssh_ok pi "$pwd" ||
+	pijack_console_enable_ssh_ok pi "$pwd" || {
+	    mesg "Wait some time to recover ..."
+	    sleep 15
 	    continue
-
+	}
 	PIPWDUSED="$pwd"
 	break
     done
@@ -842,13 +864,18 @@ then
 
     pijack_verify_rcp "" / "$raspios_local_d" $GUEST_INSTALL
 
-    pijack_ssh_set_permissions \
-	"$raspios_local_d.permissions" \
-	${GUEST_INSTALL:+$GUEST_INSTALL.permissions}
+    perms="${GUEST_INSTALL:+$GUEST_INSTALL.permissions}"
+    pinst="${GUEST_INSTALL:+$GUEST_INSTALL.post-install}"
 
-    pijack_ssh_post_install \
-	"$raspios_base_d.post-install" \
-	${GUEST_INSTALL:+$GUEST_INSTALL.post-install}
+    pijack_ssh_set_permissions "$raspios_local_d.permissions" $perms
+
+    if [ -s "$pinst" ]
+    then
+	pijack_ssh_post_install "$raspios_base_d.post-install" $pinst
+
+	mesg "Auto-removing orphaned APT packages for instance <$QID>"
+	pijack_ssh_autoremove
+    fi
 fi
 
 # -----------------------------------------------------------------------------

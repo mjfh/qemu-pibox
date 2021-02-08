@@ -56,7 +56,7 @@ In 2019, I run a Perl application which was based on a replicated data
 base implemented on a set of Raspberry PI nodes. This application was exposed
 to rough conditions such as power cuts, missing Internet access, etc. Having
 run successfully a proof of concept at the
-[Anthropos Festival](http://anthroposfestival.org "Festival Website"),
+[Anthropos Festival](//anthroposfestival.org "Festival Website"),
 the software has been developed further into a layered architecture.
 
 ## <a name="dc"></a>Development Cycle
@@ -155,7 +155,7 @@ compatible.
   public key. The tool can hijack the guest instance via *console* login and
   prepare it for *SSH* with public key authentication.
 
-* *pibridge -- virtual bridge setup*<br>
+* *pinet -- virtual bridges network setup*<br>
   This tool scans the network interface table on the host system for
   active virtual QEMU guest *&lt;lan&gt;* interfaces. Then the tool adds these
   interfaces to a bridge. Seen from a virtual guest, all active interfaces
@@ -171,7 +171,7 @@ executing them. Apart from auditing privilege escalation via *sudo*, this
 feature is intended to be used when building bespoke scripts for particular
 QEMU related tasks.
 
-The following tools do *not* use *sudo* privilege escalation
+The following tools do *not* need *sudo* privilege escalation
 
  * *pijacks* -- never (but will call *pibox* for terminating QEMU)
  * *pimage* -- never if *guestmount* is available
