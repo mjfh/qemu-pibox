@@ -22,7 +22,7 @@ doadm_qimg_loop_release () {
 
 doadm_qimg_boot_mount () { # syntax: <device>
     local dir=`qboot_mount_realpath`
-    local img=`instance_disk "$0"`
+    local img=`instance_disk "$1"`
 
     runcmd guestmount -a "$img" -m /dev/sda1 --ro "$dir"
 }
@@ -40,14 +40,14 @@ doadm_qimg_boot_unmount () {
 
 doadm_qimg_root_mount () {
     local dir=`qroot_mount_realpath`
-    local img=`instance_disk "$0"`
+    local img=`instance_disk "$1"`
 
     runcmd guestmount -a "$img" -m /dev/sda2 "$dir"
 }
 
 doadm_qimg_root_remount_rw () {
     local dir=`qroot_mount_realpath`
-    local img=`instance_disk "$0"`
+    local img=`instance_disk "$1"`
 
     runcmd umount "$dir"
     runcmd guestmount -a "$img" -m /dev/sda2 "$dir"
@@ -55,7 +55,7 @@ doadm_qimg_root_remount_rw () {
 
 doadm_qimg_root_unmount () {
     local dir=`qroot_mount_realpath`
-    local img=`instance_disk "$0"`
+    local img=`instance_disk "$1"`
 
     qroot_mount_is_active_fuser_ok ||
 	fatal "Not mounted in use space: $dir"
