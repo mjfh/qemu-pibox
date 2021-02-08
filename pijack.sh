@@ -40,9 +40,9 @@ readonly scp_nopw="scp    $sxx_opts $sxx_nop $sxx_batch"
 
 set +e
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Command line helper functions
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 pijack_debug_vardump () {
     [ -z "$DEBUG" ] ||
@@ -256,9 +256,9 @@ setup_parse_options () {
 	usage "Option --sudo-ok needs --useradd=NAME option"
 }
 
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # Test and verify port availability
-# ----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 
 pijack_console_available_ok () {
     local port=`instance_console_port "$QID"`
@@ -694,8 +694,11 @@ pijack_ssh_useradd () { # syntax: <username> [<sudo-ok>]
                home=\`awk -F: '\$1==\"$name\"{print \$6}' /etc/passwd\`;
                auth_key=\$home/.ssh/authorized_keys;
                id_ecdsa=\$home/.ssh/id_ecdsa;
-               test -s \$id_ecdsa ||
+               test -s \$id_ecdsa || {
+                 mkdir -p \$home/.ssh;
+                 chown $name:$name \$home/.ssh;
                  ssh-keygen -q -t ecdsa -f \$id_ecdsa -N '';
+               }
                grep -qs '^$SSHPUBKEY' \$auth_key ||
 		 echo '$SSHPUBKEY' >> \$auth_key;
                pubkey=\`cat \$id_ecdsa.pub\`;
@@ -709,7 +712,7 @@ pijack_ssh_useradd () { # syntax: <username> [<sudo-ok>]
     runcmd echo "$cmd" |
 	if [ -n "$DEBUG" ]
 	then
-	    runcmd $run_ssh /bin/sh ||
+	    runcmd $run_ssh /bin/sh -x ||
 		croak "$error"
 	else
 	    runcmd3 $run_ssh /bin/sh 3>&2 2>&1 ||
@@ -792,9 +795,11 @@ then
 	mesg "Console login for user \"pi\", attempt ($n)"
 	n=`expr $n + 1`
 
-	pijack_console_enable_ssh_ok pi "$pwd" ||
+	pijack_console_enable_ssh_ok pi "$pwd" || {
+	    mesg "Wait some time to recover ..."
+	    sleep 15
 	    continue
-
+	}
 	PIPWDUSED="$pwd"
 	break
     done
