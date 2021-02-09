@@ -52,7 +52,7 @@ doadm_qimg_boot_unmount () {
 # ------------
 
 doadm_qimg_root_mount () {
-    local dev=`qimg_root_device`
+    local dev=`qroot_device`
     local dir=`qroot_mount_realpath`
 
     ([ -z "$NOISY" ] || set -x; $RUNPFX $SUDO mount -oro "$dev" "$dir")
