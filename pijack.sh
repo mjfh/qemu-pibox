@@ -49,8 +49,8 @@ pijack_debug_vardump () {
 	mesg `dump_vars \
 		QID HELP DEBUG NOISY RUNPFX QIMAGE OPTIONS \
 		ISSHPUB IBASEFS SSHPUBKEY SHUTDOWN PIPWDUSED SSHENACON \
-		E2FSEXP ENROLGST APTUPDG SHOWSTAT LOCALCNF USERADD USUDOOK \
-		DOSOFTW NOSUDODWN`
+		E2FSEXP ENROLGST APTUPDG APTUPGR SHOWSTAT LOCALCNF USERADD \
+		USUDOOK DOSOFTW NOSUDODWN`
 }
 
 setup_info () {
@@ -143,8 +143,9 @@ setup_help () {
 
     readonly _b="install base system configuration and boot scripts"
     readonly _l="install application software file system"
-    readonly _p="run APT package manager on instance (needs Internet on host)"
-    readonly _W="shortcut for all of the three options above"
+    readonly _p="Software update/install instance (needs Internet on host)"
+    readonly _g="Software dist-upgrade on instance (implies --apt-install)"
+    readonly _W="shortcut for all of the four options above"
 
     readonly _U="create/update user account, access with SSH pubkey only"
     readonly _w="allow \"sudo\" from user account, combine with --useradd"
@@ -164,7 +165,8 @@ setup_help () {
     printf "$f" ""       E enrol            "$_E"
     echo
     printf "$f" ""       b base-system      "$_b"
-    printf "$f" ""       p apt-upgrade      "$_p"
+    printf "$f" ""       p apt-install      "$_p"
+    printf "$f" ""       g apt-upgrade      "$_g"
     printf "$f" ""       l local-software   "$_l"
     printf "$f" ""       W software-update  "$_W"
     echo
@@ -183,10 +185,10 @@ setup_help () {
 }
 
 setup_parse_options () {
-    local so="${short_stdopts}ekxEblpWu:wsS"
+    local so="${short_stdopts}ekxEblpgWu:wsS"
     local lo="${long_stdopts},enable-ssh,ssh-authkey,expand-filesys"
 
-    lo="${lo},enrol,base-system,local-software,apt-upgrade"
+    lo="${lo},enrol,base-system,local-software,apt-install,apt-upgrade"
     lo="${lo},software-update,useradd:,sudo-user-ok,shutdown"
     lo="${lo},raw-shutdown"
 
@@ -209,7 +211,8 @@ setup_parse_options () {
 
 	    -b|--base-system)	  IBASEFS=set  ; shift  ; continue ;;
 	    -l|--local-software)  LOCALCNF=set ; shift  ; continue ;;
-	    -p|--apt-upgrade)     APTUPDG=set  ; shift  ; continue ;;
+	    -p|--apt-install)     APTUPDG=set  ; shift  ; continue ;;
+	    -g|--apt-upgrade)     APTUPGR=set  ; shift  ; continue ;;
 	    -W|--software-update) DOSOFTW=set  ; shift  ; continue ;;
 
 	    -u|--useradd)         USERADD="$2" ; shift 2; continue ;;
@@ -235,9 +238,12 @@ setup_parse_options () {
     [ -z "$ENROLGST"   ] || SSHENACON=set
     [ -z "$ENROLGST"   ] || E2FSEXP=set
 
+    [ -z "$APTUPGR"    ] || APTUPDG=set
+
     [ -z "$DOSOFTW"    ] || IBASEFS=set
     [ -z "$DOSOFTW"    ] || LOCALCNF=set
     [ -z "$DOSOFTW"    ] || APTUPDG=set
+    [ -z "$DOSOFTW"    ] || APTUPGR=set
 
     [ -z "$IBASEFS"    ] || noshowstat=set
     [ -z "$ISSHPUB"    ] || noshowstat=set
@@ -555,11 +561,55 @@ pijack_ssh_expand_root_filesys () {
 # Update/upgrade packages on guest system
 # -----------------------------------------------------------------------------
 
-pijack_ssh_apt_update_install () { # syntax: [packages] ...
-    local raw_pkgs="$*"
+pijack_ssh_apt_update () {
+    local     port=`instance_ssh_port "$QID"`
+    local  run_ssh="$ssh_batch -t -p$port root@localhost"
+    local    error="Error updating Debian packages on instance <$QID>"
+
+    pijack_verify_ssh_available
+
+    # needs to run as SSH command (piping through /bin/sh causes APT to
+    # complain; it seems that a pseudo tty must be available)
+    local cmd="killall apt 2>/dev/null;
+               apt -yq update;"
+
+    if [ -n "$DEBUG" ]
+    then
+	runcmd $run_ssh $cmd ||
+	    croak "$error"
+    else
+	runcmd3 $run_ssh $cmd 3>&2 2>&1 ||
+	    croak "$error"
+    fi
+}
+
+pijack_ssh_apt_upgrade () {
     local     port=`instance_ssh_port "$QID"`
     local  run_ssh="$ssh_batch -t -p$port root@localhost"
     local    error="Error upgrading Debian packages on instance <$QID>"
+
+    pijack_verify_ssh_available
+
+    # needs to run as SSH command (piping through /bin/sh causes APT to
+    # complain; it seems that a pseudo tty must be available)
+    local cmd="killall apt 2>/dev/null;
+               apt -yqm dist-upgrade;"
+
+    if [ -n "$DEBUG" ]
+    then
+	runcmd $run_ssh $cmd ||
+	    croak "$error"
+    else
+	runcmd3 $run_ssh $cmd 3>&2 2>&1 ||
+	    croak "$error"
+    fi
+}
+
+pijack_ssh_apt_install () { # syntax: [packages] ...
+    local raw_pkgs="$*"
+    local     port=`instance_ssh_port "$QID"`
+    local  run_ssh="$ssh_batch -t -p$port root@localhost"
+    local    error="Error installing Debian packages on instance <$QID>"
 
     pijack_verify_ssh_available
 
@@ -569,9 +619,28 @@ pijack_ssh_apt_update_install () { # syntax: [packages] ...
     # needs to run as SSH command (piping through /bin/sh causes APT to
     # complain; it seems that a pseudo tty must be available)
     local cmd="killall apt 2>/dev/null;
-               apt -yq update;
-               apt -yqm dist-upgrade;
-               ${pkgs:+apt -yqm install $pkgs;}
+               ${pkgs:+apt -yqm install $pkgs;}"
+
+    if [ -n "$DEBUG" ]
+    then
+	runcmd $run_ssh $cmd ||
+	    croak "$error"
+    else
+	runcmd3 $run_ssh $cmd 3>&2 2>&1 ||
+	    croak "$error"
+    fi
+}
+
+pijack_ssh_apt_clean () {
+    local     port=`instance_ssh_port "$QID"`
+    local  run_ssh="$ssh_batch -t -p$port root@localhost"
+    local    error="Error cleaning up after installing on instance <$QID>"
+
+    pijack_verify_ssh_available
+
+    # needs to run as SSH command (piping through /bin/sh causes APT to
+    # complain; it seems that a pseudo tty must be available)
+    local cmd="killall apt 2>/dev/null;
                apt -q clean;"
 
     if [ -n "$DEBUG" ]
@@ -844,14 +913,23 @@ fi
 # Update/upgrade Debian on guest
 # -----------------------------------------------------------------------------
 
-if [ -n "$APTUPDG" ]
+if [ -n "$APTUPDG" -o -n "$APTUPGR" ]
 then
     bse_pkgs=`cat "$raspios_base_d.apt-packages"`
     lcl_pkgs=`cat "$raspios_local_d.apt-packages"`
     gst_pkgs=${GUEST_INSTALL:+`cat "$GUEST_INSTALL.apt-packages" 2>/dev/null`}
 
-    mesg "Upgrading Debian packages on instance <$QID>"
-    pijack_ssh_apt_update_install $bse_pkgs $lcl_pkgs $gst_pkgs
+    mesg "Updating Debian packages on instance <$QID>"
+    pijack_ssh_apt_update
+
+    [ -z "$APTUPGR" ] || {
+	mesg "Upgrading Debian packages on instance <$QID>"
+	pijack_ssh_apt_upgrade
+    }
+
+    mesg "Installing Debian packages on instance <$QID>"
+    pijack_ssh_apt_install $bse_pkgs $lcl_pkgs $gst_pkgs
+    pijack_ssh_apt_clean
 fi
 
 # -----------------------------------------------------------------------------
