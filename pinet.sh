@@ -16,7 +16,7 @@ readonly prefix=`dirname $0`
 set -e
 
 # Command line usage message
-ARGSUSAGE="[options] [--]"
+ARGSUSAGE="[options] [--] [instance]"
 
 . $prefix/lib/variables.sh
 . $prefix/lib/functions.sh
@@ -199,7 +199,7 @@ pinet_flush_wlan_ifcs () {
 }
 
 pinet_print_router_address () {
-    instance_lan_address 0 | sed 's|\.[0-9]*$|.1/24|'
+    instance_lan_address "$id" | sed 's|\.[0-9]*$|.1/24|'
 }
 
 pinet_print_qemu_ifcs () {
@@ -384,7 +384,7 @@ then
 		vok=yes
 		vid=`expr "$ifc" : "$tappfx\(.*\)"`
 		vname=`instance_to_name "$vid"`
-		ipa=`instance_lan_address "$id"`
+		ipa=`instance_lan_address "$vid"`
 		wif=`echo "$ifc" | sed "s/^$tappfx/$wlanpfx/"`
 		;;
 	    *)	ipa=`pinet_print_ifc_ip "$ifc"`
