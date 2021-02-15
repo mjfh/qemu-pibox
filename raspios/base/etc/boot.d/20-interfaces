@@ -43,8 +43,13 @@ then
 	# ---------------------------------------------------------
 	ipa=`node_addr lan $node`
 	log_action_begin_msg "Assign IP address $ipa to lan0"
-
 	ip addr add $ipa/24 dev lan0
+
+	lla=`node_mac $node`
+	log_action_cont_msg "mac $lla"
+	ip link set                dev lan0 down
+	ip link set address "$lla" dev lan0 up
+
 	log_action_end_msg $?
 
 	# Set up host name for this node ID

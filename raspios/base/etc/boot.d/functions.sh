@@ -161,21 +161,35 @@ node_id () { # syntax: <ip-address>
 	 }
 	 END {
 	    print nid
-	 }' ${etc_dir:-/etc}/hosts
+	 }' /etc/hosts
 }
 
 # get IP addess associated with the argument node ID and suffix
 node_addr () { # syntax: <suffix> <node-id>
     awk '$2 == "n'"$2"'.'"$1"'" {
-	     nid = $1
-	     exit
+	    nid = $1
+	    exit
 	 }
 	 $2 == "n0.lan" {
-	     nid = $1
+	    nid = $1
 	 }
 	 END {
 	    print nid
-	}' ${etc_dir:-/etc}/hosts
+	}' /etc/hosts
+}
+
+node_mac () { # syntax: <node-id>
+    lla=`printf "b8:27:eb:00:00:%02x" "$1"`
+    awk 'BEGIN {
+            lladdr = "'"$lla"'"
+         }
+	 $1 == "lan'"$1"'" && $2 == "mac" {
+            lladdr = $3
+            exit
+        }
+        END {
+            print lladdr
+	}' /etc/iftab
 }
 
 # get host name associated with the argument node ID
@@ -189,7 +203,7 @@ host_name () { # syntax: <node-id>
 	 }
 	 END {
 	    print hostname
-	}' ${etc_dir:-/etc}/hosts
+	}' /etc/hosts
 }
 
 # get least interface instance associated with argument prefix
