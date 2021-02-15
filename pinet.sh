@@ -16,7 +16,7 @@ readonly prefix=`dirname $0`
 set -e
 
 # Command line usage message
-ARGSUSAGE="[options] [--]"
+ARGSUSAGE="[options] [--] [instance]"
 
 . $prefix/lib/variables.sh
 . $prefix/lib/functions.sh
