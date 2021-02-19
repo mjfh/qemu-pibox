@@ -614,7 +614,7 @@ pijack_ssh_apt_install () { # syntax: [packages] ...
     pijack_verify_ssh_available
 
     # sanitise package list
-    local pkgs=`echo -n "$raw_pkgs"|tr -c '[:alnum:]:*+-' ' '|sed 's/  */ /g'`
+    local pkgs=`echo -n "$raw_pkgs"|tr -c '[:alnum:]:.*+-' ' '|sed 's/  */ /g'`
 
     # needs to run as SSH command (piping through /bin/sh causes APT to
     # complain; it seems that a pseudo tty must be available)
