@@ -21,6 +21,9 @@ When seen as part of the IP network, they are called
 * [Node Architecture](#na                       "Main Chapter")
   + [Hardware Node](#hn                         "Chapter Reference")
   + [Virtual QEMU Guest Node](#vq               "Chapter Reference")
+* [RaspiOS Hints & Helpers](#oe                 "Main Chapter")
+  + [Upgrade Caveat](#uc                         "Chapter Reference")
+  + [Installer Scripts](#is                     "Chapter Reference")
 * [Licence](#li                                 "Main Chapter")
 
 # <a name="qs"></a>Quick Start
@@ -300,6 +303,51 @@ interfaces have the following properties:
 Here, node ID configuration is superimposed by the *QEMU virtual machine* when
 configuring the WAN interface via DHCP. Nevertheless, LAN and WLAN interfaces
 follow the same logic as in the hardware case.
+
+# <a name="oe"></a>RaspiOS Hints & Helpers
+
+## <a name="uc"></a>Upgrade Caveat
+
+Upgrading the current *RaspiOS* with *apt update;apt upgrade* will result in
+a boot image replacement that cannot be properly handled by *QEMU* (as of Feb
+2021). In that case, *QEMU* just stalls and leaves the system incommunicado.
+The replacement happens when running
+
+      sh pijack.sh --software-update
+or
+
+      sh pijack.sh --apt-upgrade
+
+As a kludge, no *apt upgrade* command must be run on the *RaspiOS* when
+installing which can be accomplished with
+
+      sh pijack.sh --base-system --apt-install --local-software
+
+See *sh pijack.sh --help* for details.
+
+
+## <a name="is"></a>Installer scripts
+
+With the *--local-software* command line option for the *pijack.sh* tool,
+the following installer scripts will be provided in the */usr/local/src*
+directory of the *RaspiOS* image. See the script headers for the Debian
+packages needed for compiling and running. The scripts will fetch the source
+code from *github* and install into */usr/local/bin* or */usr/local/sbin*.
+Invoking a script again again, it will re-compile/install only if there was
+source code update.
+
+* *ndjbdns-update.sh*<br>
+  This script installs a ported version of the *DJBDNS* name server tools
+  originally written by Dr. D J Bernstein. These servers are supposed to run
+  under control of *runit* or *daemontools*.
+
+* *nim-update.sh*<br>
+  Installs the latest development version of the *NIM* compiler.
+
+* *rsync-update.sh*<br>
+  Compiles the latest *rsync* version. This is currently needed (as of Feb
+  2021) for running an *rsync* server proxied through *NGINX* (allowing
+  certificate authentication.)
 
 # <a name="li"></a>Licence
 
